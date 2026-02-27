@@ -40,8 +40,8 @@ class TestVoiceActivityDetector:
         ]
         filtered = vad._filter_short(regions)
         assert len(filtered) == 2
-        assert filtered[0].duration == 0.6
-        assert filtered[1].duration == 1.0
+        assert abs(filtered[0].duration - 0.6) < 1e-9
+        assert abs(filtered[1].duration - 1.0) < 1e-9
 
     def test_filter_short_empty(self) -> None:
         """Test _filter_short with empty list."""
