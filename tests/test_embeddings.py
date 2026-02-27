@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-import pytest
 
 from diarization.embeddings import EmbeddingExtractor
 from diarization.types import SpeechRegion
