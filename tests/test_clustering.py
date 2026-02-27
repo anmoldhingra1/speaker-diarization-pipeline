@@ -47,7 +47,7 @@ class TestSpectralClusterer:
         embeddings = np.random.randn(10, 128)
         labels = clusterer.cluster(embeddings)
         assert isinstance(labels, list)
-        assert all(isinstance(l, (int, np.integer)) for l in labels)
+        assert all(isinstance(label, (int, np.integer)) for label in labels)
 
     def test_cluster_length(self) -> None:
         """Test cluster returns one label per embedding."""
@@ -111,7 +111,7 @@ class TestSpectralClusterer:
         data = np.random.randn(20, 10)
         labels = clusterer._kmeans(data, k=3)
         assert len(labels) == 20
-        assert all(isinstance(l, (int, np.integer)) for l in labels)
+        assert all(isinstance(label, (int, np.integer)) for label in labels)
 
     def test_kmeans_labels_range(self) -> None:
         """Test k-means labels are in [0, k)."""

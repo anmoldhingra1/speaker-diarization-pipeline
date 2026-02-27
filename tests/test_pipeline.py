@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from diarization.pipeline import DiarizationPipeline
-from diarization.types import PipelineConfig, DiarizationResult, Segment
+from diarization.types import PipelineConfig, DiarizationResult
 
 
 class TestDiarizationPipeline:
@@ -54,7 +54,7 @@ class TestDiarizationPipeline:
         assert pipeline._is_initialized is False
         # Mock VAD to return empty
         with patch.object(pipeline._vad, 'detect', return_value=[]):
-            result = pipeline.process(__file__)
+            pipeline.process(__file__)
             # Should have initialized
             assert pipeline._is_initialized is True
 

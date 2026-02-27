@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 
@@ -81,7 +81,7 @@ class DiarizationResult:
         for seg in self.segments:
             duration = seg.end - seg.start
             lines.append(
-                f"SPEAKER {self.audio_path or file} 1 "
+                f"SPEAKER {self.audio_path or 'unknown'} 1 "
                 f"{seg.start:.3f} {duration:.3f} "
                 f"<NA> <NA> {seg.speaker} <NA> <NA>"
             )

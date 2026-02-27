@@ -7,7 +7,6 @@ to produce speaker-labeled segments from raw audio.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
@@ -15,7 +14,7 @@ from diarization.segmenter import SpeakerSegmenter
 from diarization.embeddings import EmbeddingExtractor
 from diarization.clustering import SpectralClusterer
 from diarization.vad import VoiceActivityDetector
-from diarization.types import DiarizationResult, Segment, PipelineConfig
+from diarization.types import DiarizationResult, PipelineConfig
 
 logger = logging.getLogger(__name__)
 
