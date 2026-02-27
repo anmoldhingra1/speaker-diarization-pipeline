@@ -1,329 +1,193 @@
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![CI](https://github.com/anmoldhingra1/speaker-diarization-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/anmoldhingra1/speaker-diarization-pipeline/actions)
 
 # Speaker Diarization Pipeline
 
-Production-grade speaker diarization system for contact center audio. Automatically segments conversational audio into speaker-labeled episodes with precise timestamp boundaries. Optimized for agent-customer dialogue separation with minimal false positive rate and high temporal accuracy, enabling downstream applications including quality assurance automation, conversation analytics, and compliance monitoring.
+A production-ready speaker diarization system for contact center audio. Automatically segments and labels speech from raw audio input with precise timestamp boundaries. Optimized for agent-customer dialogue separation with minimal false positive rate and high temporal accuracy.
 
-## Overview
+## Features
 
-Speaker diarization answers the question: "Who spoke when?" This pipeline orchestrates the complete workflow from raw audio to speaker-segmented output, handling the unique characteristics of contact center environments—background noise, variable audio quality, simultaneous speech, and extended conversation duration. The system is trained on diverse telephony data and deployed across thousands of concurrent call processing jobs, achieving sub-second timestamp accuracy and speaker identification F1 scores >92% on held-out test sets.
+- **Automatic Speaker Segmentation**: "Who spoke when?" — precise temporal speaker identification
+- **Agent-Customer Separation**: Optimized for 2-speaker contact center scenarios
+- **Sub-Second Accuracy**: Timestamp boundaries accurate to ±100ms
+- **Confidence Scoring**: Per-segment confidence values for quality filtering
+- **Batch Processing**: Efficient concurrent processing of multiple files
+- **Overlapping Speech Handling**: Explicit modeling of simultaneous speech
+- **Audio Quality Robustness**: Tested on compressed VoIP, background noise, variable sample rates
+- **Minimal Dependencies**: Clean, focused API with numpy as primary dependency
 
-## Pipeline Architecture
+## Architecture
+
+The pipeline orchestrates four core components:
 
 ```
-Input Audio File
-        |
-        v
+Raw Audio
+    ↓
 Voice Activity Detection (VAD)
-        |
-        +---> Remove silence/noise segments
-        |
-        v
-Feature Extraction
-        |
-        +---> MFCC (mel-frequency cepstral coefficients)
-        |
-        +---> Speaker Embeddings (x-vectors)
-        |
-        v
+    ↓ [detects speech regions, filters silence]
+Speaker Embedding Extraction
+    ↓ [generates fixed-dim speaker-discriminative vectors]
 Spectral Clustering
-        |
-        +---> Compute speaker affinity matrix
-        |
-        +---> Estimate optimal clusters (2 for typical agent-customer)
-        |
-        v
-Speaker Assignment & Segment Refinement
-        |
-        +---> Map clusters to speaker labels (Agent, Customer)
-        |
-        +---> Enforce minimum segment duration
-        |
-        v
-Output: Speaker-Labeled Segments
-        |
-        +---> JSON with speaker, start_time, end_time, confidence
-        +---> WAV segments (optional)
+    ↓ [estimates speaker count, assigns speaker labels]
+Segment Refinement
+    ↓ [merges fragmented turns, applies temporal constraints]
+Speaker-Labeled Segments [JSON output]
 ```
 
 ## Installation
 
-### Requirements
-
-- Python 3.8+
-- ffmpeg (for audio preprocessing)
-- CUDA 11.0+ (optional, for GPU acceleration)
-
-### Setup
-
 ```bash
 git clone https://github.com/anmoldhingra1/speaker-diarization-pipeline.git
 cd speaker-diarization-pipeline
-pip install -r requirements.txt
+pip install -e ".[dev]"
 ```
 
-### Dependencies
+### Requirements
 
-- speechbrain >= 0.5.0
-- librosa >= 0.9.0
-- scipy >= 1.5.0
-- numpy >= 1.19.0
-- torch >= 1.9.0
-- scikit-learn >= 0.24.0
-- pydub >= 0.25.1
+- Python 3.9 or higher
+- numpy >= 1.24
 
-## Usage
-
-### Basic Diarization
+## Quick Start
 
 ```python
-from diarization_pipeline import SpeakerDiarizer
+from diarization import DiarizationPipeline
 
 # Initialize pipeline
-diarizer = SpeakerDiarizer(
-    model='pretrained_contact_center',
-    device='cuda:0'
-)
+pipeline = DiarizationPipeline()
 
 # Process audio file
-segments = diarizer.diarize(
-    audio_path='call_recording.wav',
-    output_format='json'
-)
+result = pipeline.process("audio.wav")
 
-# Output structure
-for segment in segments:
-    print(f"{segment['speaker']:8s} | {segment['start']:7.2f}s - {segment['end']:7.2f}s | {segment['confidence']:.3f}")
+# Inspect results
+for segment in result.segments:
+    print(f"{segment.speaker:8s} | {segment.start:7.2f}s - {segment.end:7.2f}s | confidence: {segment.confidence:.3f}")
 
 # Example output:
-# agent    |    0.23s -    2.31s | 0.957
-# customer |    2.35s -    8.14s | 0.941
-# agent    |    8.18s -   10.52s | 0.963
-# customer |   10.56s -   15.38s | 0.928
+# agent    |    0.23s -    2.31s | confidence: 0.957
+# customer |    2.35s -    8.14s | confidence: 0.941
+# agent    |    8.18s -   10.52s | confidence: 0.963
 ```
+
+## Usage Examples
 
 ### Batch Processing
 
 ```python
-from diarization_pipeline import BatchDiarizer
+from diarization import DiarizationPipeline
 import glob
 
-# Process multiple files
-batch_processor = BatchDiarizer(
-    batch_size=32,
-    num_workers=4,
-    checkpoint_dir='./checkpoints'
-)
+pipeline = DiarizationPipeline()
+audio_files = glob.glob("call_recordings/*.wav")
+results = pipeline.process_batch(audio_files)
 
-audio_files = glob.glob('call_data/*.wav')
-results = batch_processor.process(
-    audio_files,
-    output_dir='./diarization_output'
-)
-
-print(f"Processed {results['total']} files")
-print(f"Failed: {results['failed']}")
-print(f"Avg processing time: {results['avg_duration']:.2f}s per file")
+for path, result in zip(audio_files, results):
+    print(f"{path}: {result.num_speakers} speakers, {len(result.segments)} segments")
 ```
 
-### Integration with Transcription
+### Custom Configuration
 
 ```python
-from diarization_pipeline import SpeakerDiarizer
-from speech_recognition import SpeechRecognizer
+from diarization import DiarizationPipeline
+from diarization.types import PipelineConfig
 
-diarizer = SpeakerDiarizer()
-recognizer = SpeechRecognizer()
+config = PipelineConfig(
+    vad_threshold=0.6,           # stricter VAD
+    min_segment_duration=0.5,    # minimum segment length
+    collar=0.2,                  # merge adjacent segments within 0.2s
+    max_speakers=5,              # upper bound on speaker count
+)
 
-# Diarize
-segments = diarizer.diarize('call.wav')
-
-# Transcribe each segment
-diarized_transcript = []
-for segment in segments:
-    audio_chunk = extract_segment('call.wav', segment['start'], segment['end'])
-    text = recognizer.transcribe(audio_chunk)
-
-    diarized_transcript.append({
-        'speaker': segment['speaker'],
-        'start': segment['start'],
-        'end': segment['end'],
-        'text': text,
-        'confidence': segment['confidence']
-    })
-
-# Output
-for turn in diarized_transcript:
-    print(f"[{turn['speaker']}] {turn['text']}")
+pipeline = DiarizationPipeline(config=config)
+result = pipeline.process("audio.wav")
 ```
 
-### Advanced Configuration
+### Export to RTTM Format
 
 ```python
-config = {
-    'vad_threshold': 0.5,           # Voice activity threshold
-    'embedding_model': 'ecapa-tdnn', # Embedding architecture
-    'num_speakers': None,            # Auto-detect (None) or fixed number
-    'min_segment_duration': 0.5,     # Discard segments shorter than 0.5s
-    'num_clusters_range': (1, 5),    # Search for optimal clusters in range
-    'refinement_passes': 2,          # Post-processing refinement iterations
-    'use_cuda': True
-}
-
-diarizer = SpeakerDiarizer(config=config)
-segments = diarizer.diarize('call.wav')
+result = pipeline.process("audio.wav")
+rttm_str = result.to_rttm()  # Standard RTTM format for evaluation
+print(rttm_str)
 ```
 
-## Pipeline Components
+## Components
 
 ### Voice Activity Detection (VAD)
+Detects speech regions in audio using energy-based analysis with optional thresholding. Removes silence and non-speech segments before downstream processing.
 
-Filters out silence and non-speech segments. Uses energy-based detection with spectral gating, reducing downstream computational cost and improving clustering quality by focusing on speaker-discriminative regions.
-
-```python
-vad = VoiceActivityDetector(sample_rate=16000)
-active_frames = vad.detect('call.wav')  # Boolean mask for active speech frames
-```
-
-### Speaker Embedding Extraction
-
-Generates fixed-dimensional speaker embeddings using ECAPA-TDNN architecture trained on VoxCeleb. These embeddings are speaker-discriminative and robust to channel variation typical in telephony.
-
-**Technical Details**:
-- Input: 200ms sliding windows (overlap 10ms)
-- Output: 192-dimensional x-vectors
-- Training data: 6+ million utterances from VoxCeleb 1 & 2
-- Robustness: Tested on Skype, Zoom, landline, mobile networks
+### Speaker Embeddings
+Extracts fixed-dimensional speaker embeddings from each speech region. These embeddings are trained to be speaker-discriminative and robust to channel variation.
 
 ### Spectral Clustering
-
-Builds speaker affinity matrix from embeddings using cosine similarity. Applies spectral clustering with automatic cluster estimation (eigenvalue thresholding) to identify the number of speakers without manual specification.
-
-```python
-clustering = SpectralClusteringDiarizer(
-    num_speakers='auto',  # Or specify fixed number
-    threshold=0.7         # Similarity threshold for cluster merging
-)
-speaker_labels = clustering.fit_predict(embeddings)
-```
+Clusters speaker embeddings using spectral clustering with automatic speaker count estimation via eigengap analysis. Adapts to variable speaker counts without manual specification.
 
 ### Segment Refinement
+Post-processing to enforce temporal constraints and merge fragmented speaker turns caused by brief pauses. Supports collar-based merging and speaker label assignment.
 
-Post-processing to enforce temporal constraints and merge fragmented speaker turns caused by short speech pauses.
+## Testing
 
-- Minimum segment duration enforcement
-- Boundary smoothing (±50ms adjustment for temporal consistency)
-- Overlapping speech resolution (assign to dominant speaker by power)
-- Speaker turn duration statistics
+Run the comprehensive test suite (90+ tests):
 
-## Features
+```bash
+pytest tests/ -v
+```
 
-- **Agent-Customer Separation**: Automatically identifies and labels the two primary speakers typical in contact center calls
-- **Precise Timestamps**: Sub-100ms accuracy on segment boundaries, suitable for temporal analytics
-- **Confidence Scoring**: Per-segment confidence values enable filtering and quality control
-- **Batch Processing**: Optimized for concurrent processing of thousands of audio files
-- **Overlapping Speech Handling**: Explicit modeling of simultaneous speech with speaker assignment
-- **Audio Quality Robustness**: Tested on compressed VoIP, background noise, varying sample rates
-- **Minimal Dependencies**: Lightweight deployment without heavy ML frameworks in production
-- **JSON Output**: Structured output format integrates seamlessly with data pipelines
+Test coverage includes:
+- Unit tests for all classes and methods
+- Edge case handling (empty inputs, boundary conditions)
+- Integration tests for end-to-end pipeline
+- Determinism and reproducibility checks
 
-## Performance Characteristics
+## Contributing
 
-### Accuracy
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on development setup, testing, and submitting changes.
 
-Evaluated on contact center audio (100 calls, ~50 hours):
+## Performance
 
-| Metric | Performance |
-|--------|-------------|
+Evaluated on contact center audio:
+
+| Metric | Value |
+|--------|-------|
 | Diarization Error Rate (DER) | 8.2% |
 | Speaker Attribution Accuracy | 92.1% |
-| Segment Boundary Tolerance (±100ms) | 96.7% |
-| F1 Score (Agent Detection) | 0.943 |
+| Segment Boundary Accuracy (±100ms) | 96.7% |
+| Processing Speed (CPU) | ~0.15x realtime |
+| Processing Speed (GPU) | ~0.05x realtime |
 
-### Speed
+## API Reference
 
-- Single-threaded CPU: ~0.15x realtime (6.7s per minute of audio)
-- GPU (CUDA): ~0.05x realtime (1.2s per minute of audio)
-- Batch processing: Linear scaling with number of workers
+### DiarizationPipeline
 
-### Resource Usage
-
-| Mode | Memory | CPU | GPU |
-|------|--------|-----|-----|
-| Single-threaded | ~800MB | 1 core @ 60% | — |
-| Batch (32 parallel) | ~4.2GB | 8 cores @ 80% | V100 @ 40% |
-
-## Output Format
-
-### JSON Output
-
-```json
-[
-  {
-    "speaker": "agent",
-    "speaker_id": 0,
-    "start": 0.23,
-    "end": 2.31,
-    "duration": 2.08,
-    "confidence": 0.957,
-    "num_frames": 208,
-    "embedding_similarity": 0.891
-  },
-  {
-    "speaker": "customer",
-    "speaker_id": 1,
-    "start": 2.35,
-    "end": 8.14,
-    "duration": 5.79,
-    "confidence": 0.941,
-    "num_frames": 579,
-    "embedding_similarity": 0.847
-  }
-]
-```
-
-## Troubleshooting
-
-### Poor diarization on noisy audio
+Main entry point for diarization.
 
 ```python
-diarizer = SpeakerDiarizer(
-    vad_threshold=0.6,  # More aggressive noise filtering
-    refinement_passes=3  # Additional smoothing
+pipeline = DiarizationPipeline(
+    config: Optional[PipelineConfig] = None,
+    model_dir: Optional[Path] = None,
 )
+
+result = pipeline.process(audio_path: str | Path) -> DiarizationResult
+results = pipeline.process_batch(audio_paths: list[str | Path]) -> list[DiarizationResult]
+pipeline.initialize() -> None
 ```
 
-### Incorrect number of speakers detected
+### DiarizationResult
 
-Manually specify the expected number of speakers:
+Output structure containing speaker-labeled segments.
 
 ```python
-diarizer = SpeakerDiarizer(num_speakers=2)  # Force 2-speaker mode
+result.segments: list[Segment]              # speaker-labeled segments
+result.num_speakers: int                    # detected speaker count
+result.total_duration: float                # total audio duration
+result.speakers() -> list[str]              # unique speaker labels
+result.segments_for(speaker: str) -> list[Segment]  # segments by speaker
+result.to_rttm() -> str                     # export as RTTM format
 ```
-
-### Memory issues on large files
-
-Use chunked processing:
-
-```python
-segments = diarizer.diarize(
-    'large_file.wav',
-    chunk_duration=300,  # Process in 5-minute chunks
-    overlap=10           # Overlap for boundary accuracy
-)
-```
-
-## References
-
-- Desplanques, B., et al. (2020). "ECAPA-TDNN: Emphasized Channel Attention, Propagation and Aggregation in TDNN Based Speaker Verification." *arXiv preprint arXiv:2005.07143*.
-- Nagrani, A., et al. (2017). "VoxCeleb: A Large-Scale Speaker Identification Dataset." *Interspeech*, 2017.
-- Chanda, R., et al. (2020). "Speaker Diarization in the Wild: The JSALT 2017 Challenge." *Interspeech*, 2020.
-- Wang, S., et al. (2018). "Lstm-based Speaker Diarization." *ICASSP 2018-2018 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)*. IEEE, 2018.
 
 ## License
 
-This work is provided as-is for research and commercial use.
+MIT License. See [LICENSE](LICENSE) for details.
 
----
+## Author
 
-**Built by** [Anmol Dhingra](https://anmol.one)
+Built by [Anmol Dhingra](https://anmol.one)
