@@ -24,6 +24,9 @@ classifiers = [
 ]
 dependencies = ["numpy>=1.24"]
 
+[tool.setuptools.packages.find]
+include = ["diarization*", "pipelines*", "models*"]
+
 [project.urls]
 Repository = "https://github.com/anmoldhingra1/speaker-diarization-pipeline"
 Issues = "https://github.com/anmoldhingra1/speaker-diarization-pipeline/issues"
