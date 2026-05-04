@@ -4,7 +4,13 @@
 
 # Speaker Diarization Pipeline
 
-A production-ready speaker diarization system for contact center audio. Automatically segments and labels speech from raw audio input with precise timestamp boundaries. Optimized for agent-customer dialogue separation with minimal false positive rate and high temporal accuracy.
+A speaker diarization pipeline for agent/customer audio. It segments and labels speech from raw audio input with timestamp boundaries, with a bias toward two-speaker conversational settings.
+
+## Why This Exists
+
+Voice applications need to know more than what was said. They need to know who spoke, when turns changed, and where overlapping speech or silence affects downstream interpretation.
+
+This repo is a public slice of that audio-processing layer: voice activity detection, speaker embeddings, clustering, and segment refinement.
 
 ## Features
 
@@ -142,17 +148,11 @@ Test coverage includes:
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on development setup, testing, and submitting changes.
 
-## Performance
+## Evaluation Notes
 
-Evaluated on contact center audio:
+The repo exposes diarization outputs in JSON and RTTM formats so you can evaluate against your own labeled audio. Metrics depend heavily on the dataset, channel quality, language, number of speakers, and overlap rate.
 
-| Metric | Value |
-|--------|-------|
-| Diarization Error Rate (DER) | 8.2% |
-| Speaker Attribution Accuracy | 92.1% |
-| Segment Boundary Accuracy (±100ms) | 96.7% |
-| Processing Speed (CPU) | ~0.15x realtime |
-| Processing Speed (GPU) | ~0.05x realtime |
+Use DER, speaker attribution accuracy, and boundary tolerance as the core evaluation lens.
 
 ## API Reference
 
@@ -190,4 +190,4 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ## Author
 
-Built by [Anmol Dhingra](https://anmol.one)
+Built by [Anmol Dhingra](https://github.com/anmoldhingra1), founder of [Rerato](https://trivana.ai).
